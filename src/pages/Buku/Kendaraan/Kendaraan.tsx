@@ -3,7 +3,18 @@ import axios from "axios";
 import Swal from "sweetalert2";
 import { Dialog, Transition } from "@headlessui/react";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from 'jwt-decode';
 
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 const API_VEHICLE_BOOK = "https://sipandu.sinarjernihsuksesindo.biz.id/api/vehicle_book/";
 const API_SHIFTS = "https://sipandu.sinarjernihsuksesindo.biz.id/api/shifts/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -48,7 +59,18 @@ const KendaraanPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("searchTermKendaraan") || "");
+ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
+  
    const [isModalOpenGambar, setIsModalOpenGambar] = useState(false);
     const [selectedImage, setSelectedImage] = useState(null);
     
@@ -67,28 +89,47 @@ const KendaraanPage: React.FC = () => {
       }, [searchTerm]);
 
   useEffect(() => {
+    if (userData) {
     fetchVehicleBooks();
     fetchShifts();
     fetchEmployees();
-  }, []);
+    }
+  }, [userData]);
 
   const fetchVehicleBooks = async () => {
-    setIsLoading(true);
+    setIsLoading(true); // Mulai loading
     try {
-      const response = await axios.get<VehicleBook[]>(API_VEHICLE_BOOK);
-      setTimeout(() => {
-        const sortedVehicleBooks = response.data.sort(
-          (a, b) => b.id_vehicle_book - a.id_vehicle_book
-        );
-        setVehicleBooks(sortedVehicleBooks);
-        setIsLoading(false);
-      }, 1000); // Simulasi delay 1 detik
+        // Tambahkan jeda 1 detik sebelum melakukan fetch
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Jeda 1 detik
+
+        const response = await axios.get(API_VEHICLE_BOOK);
+        
+        // Ambil data kendaraan
+        let vehicleBooks = response.data;
+
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan customer_id
+            if (userLevel !== 2) {
+                vehicleBooks = vehicleBooks.filter(
+                    (vehicleBook) => vehicleBook.customer_id === userLevel
+                );
+            }
+        }
+
+        // Urutkan data berdasarkan ID dari besar ke kecil
+        const sortedVehicleBooks = vehicleBooks.sort((a, b) => b.id_vehicle_book - a.id_vehicle_book);
+        setVehicleBooks(sortedVehicleBooks); // Set data setelah diurutkan
     } catch (error) {
-      console.error("Error fetching vehicle books:", error);
-      Swal.fire("Error!", "Gagal memuat data kendaraan.", "error");
-      setIsLoading(false);
+        console.error("Error fetching vehicle books:", error.response?.data || error.message); // Debug error
+        Swal.fire("Error!", error.response?.data?.message || "Gagal memuat data kendaraan.", "error");
+    } finally {
+        setIsLoading(false); // Akhiri loading meskipun terjadi error
     }
-  };
+};
+
+  
 
   const fetchShifts = async () => {
     try {
@@ -215,10 +256,10 @@ const KendaraanPage: React.FC = () => {
                       <td className="border px-4 py-2">
   {vehicleBook.foto ? (
     <img
-      src={`https://sipandu.sinarjernihsuksesindo.biz.id/${vehicleBook.foto}`}
+      src={`https://sipandu.sinarjernihsuksesindo.biz.id/uploads/${vehicleBook.foto}`}
       alt="Foto kendaraan"
       className="w-16 h-16 object-cover cursor-pointer"
-      onClick={() => openModal(`https://sipandu.sinarjernihsuksesindo.biz.id/${vehicleBook.foto}`)}
+      onClick={() => openModal(`https://sipandu.sinarjernihsuksesindo.biz.id/uploads/${vehicleBook.foto}`)}
     />
   ) : (
     "Tidak ada foto"

@@ -4,6 +4,18 @@ import axios from "axios";
 import { Dialog, Transition } from "@headlessui/react";
 
 import Swal from "sweetalert2";
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 
 const API_HANDOVER = "https://sipandu.sinarjernihsuksesindo.biz.id/api/handover/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -26,6 +38,17 @@ const UpdateHandover: React.FC = () => {
     information: "",
     handover_photo: null,
   });
+ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
 
   const [employees, setEmployees] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -240,19 +263,38 @@ const UpdateHandover: React.FC = () => {
         }
       };
 
+   useEffect(() => {
+        if (userData) {
+          fetchEmployees();
+        }
+      }, [userData]);
+      
   useEffect(() => {
-    fetchEmployees();
     fetchHandoverData();
   }, []);
 
-  const fetchEmployees = async () => {
+const fetchEmployees = async () => {
     try {
-      const response = await axios.get(API_EMPLOYEES);
-      setEmployees(response.data);
+        const response = await axios.get(API_EMPLOYEES);
+        let employeeOptions = response.data;
+
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan customer_id
+            if (userLevel !== 2) {
+                employeeOptions = employeeOptions.filter(
+                    (employee) => employee.customer_id === userLevel
+                );
+            }
+        }
+
+        setEmployees(employeeOptions); // Set data pegawai setelah difilter
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data petugas.", "error");
+        Swal.fire("Error!", "Gagal memuat data petugas.", "error");
     }
-  };
+};
+
 
   const fetchHandoverData = async () => {
     try {

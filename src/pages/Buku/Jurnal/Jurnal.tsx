@@ -3,7 +3,19 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Dialog, Transition } from "@headlessui/react";
+import { jwtDecode } from 'jwt-decode';
 
+
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 const API_JOURNAL_BOOK = "https://sipandu.sinarjernihsuksesindo.biz.id/api/journal_book/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
 const API_SHIFTS = "https://sipandu.sinarjernihsuksesindo.biz.id/api/shifts/";
@@ -31,6 +43,17 @@ const JournalPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
   const [isLoading, setIsLoading] = useState(true);
+ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+       useEffect(() => {
+         const token = localStorage.getItem("access_token");
+         try {
+           const decoded = jwtDecode<DecodedToken>(token);
+           setUserData(decoded.sub);
+         } catch (err) {
+           console.error("Token tidak valid:", err);
+         }
+       }, []);
+
 
   useEffect(() => {
     fetchJournals();
@@ -45,18 +68,49 @@ const JournalPage: React.FC = () => {
   const fetchJournals = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(API_JOURNAL_BOOK);
-      setTimeout(() => {
-        const sortedJournals = response.data.sort((a, b) => b.id_journal - a.id_journal);
-        setJournals(sortedJournals);
-        setIsLoading(false);
-      }, 1000); // Tambahkan jeda 1 detik
+        const response = await axios.get(API_JOURNAL_BOOK);
+        
+        // Tunggu 1 detik sebelum melanjutkan
+        setTimeout(() => {
+            if (userData && userData.level) {
+                let filteredJournals = response.data;
+
+                // Pastikan level dibandingkan dengan tipe data yang sama
+                const userLevel = parseInt(userData.level, 10);
+
+                // Jika level selain "2", filter berdasarkan customer_id
+                if (userLevel !== 2) {
+                    filteredJournals = filteredJournals.filter(
+                        (journal) => journal.customer_id === userLevel
+                    );
+                }
+
+                // Urutkan data berdasarkan ID dari besar ke kecil
+                const sortedJournals = filteredJournals.sort(
+                    (a, b) => b.id_journal - a.id_journal
+                );
+
+                setJournals(sortedJournals); // Set data setelah diurutkan
+            } else {
+                setJournals([]); // Kosongkan data jika tidak ada userData atau level
+            }
+
+            setIsLoading(false); // Akhiri loading setelah data di-set
+        }, 1000); // Delay 1 detik
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data jurnal.", "error");
-      setIsLoading(false);
+        console.error("Error fetching journals:", error);
+        Swal.fire("Error!", "Gagal memuat data jurnal.", "error");
+        setIsLoading(false); // Akhiri loading meskipun terjadi error
     }
-  };
-  
+};
+
+   useEffect(() => {
+      if (userData) {
+        fetchJournals();
+      }
+    }, [userData]);
+    
+
   const fetchEmployees = async () => {
     try {
       const response = await axios.get(API_EMPLOYEES);

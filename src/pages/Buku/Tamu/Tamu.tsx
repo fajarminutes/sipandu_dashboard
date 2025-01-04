@@ -2,6 +2,18 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 
 const API_GUEST_BOOK = "https://sipandu.sinarjernihsuksesindo.biz.id/api/guest_book/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -28,10 +40,20 @@ const GuestBookPage = () => {
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("searchTermGuestBook") || "");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
-
   const [isModalOpenGambar, setIsModalOpenGambar] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
-  
+  const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
+
   const openModal = (image) => {
     setSelectedImage(image);
     setIsModalOpenGambar(true);
@@ -42,62 +64,67 @@ const GuestBookPage = () => {
     setSelectedImage(null);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      await fetchEmployees();
-      await fetchGuestBooks();
-    };
-    fetchData();
-  }, []);
-
-  useEffect(() => {
-    if (guestBooks.length > 0) {
-      fetchEmployees();
-    }
-  }, [guestBooks]);
-  
 
   useEffect(() => {
     localStorage.setItem("searchTermGuestBook", searchTerm);
   }, [searchTerm]);
 
-  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-
-  const fetchGuestBooks = async () => {
-    setIsLoading(true);
-    try {
-      await delay(1000);
-      const response = await axios.get(API_GUEST_BOOK);
-      const sortedGuestBooks = response.data.sort((a, b) => b.id_guest - a.id_guest);
-
-      setGuestBooks(sortedGuestBooks);
-    } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data buku tamu.", "error");
-    } finally {
-      setIsLoading(false);
+  useEffect(() => {
+    if (userData) {
+      fetchEmployees();
+      fetchGuestBooks();
     }
-  };
+  }, [userData]);
 
-  const fetchEmployees = async () => {
-    try {
-      const response = await axios.get(API_EMPLOYEES);
-  
-      // Ambil semua ID yang ada di guestBooks
-      const guestBookIds = guestBooks.map((guestBook) => String(guestBook.id));
-  
-      // Filter karyawan berdasarkan ID yang relevan
-      const filteredEmployees = response.data.filter((employee) =>
-        guestBookIds.includes(String(employee.id))
-      );
-  
-      setEmployees(filteredEmployees);
-    } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
-    }
-  };
-  
 
+    const fetchGuestBooks = async () => {
+      setIsLoading(true);
+      try {
+          const response = await axios.get(API_GUEST_BOOK);
+          
+          // Ambil data buku tamu
+          let guestBooks = response.data;
+
+          // Pastikan userData tersedia
+          if (userData && userData.level) {
+              const userLevel = parseInt(userData.level, 10);
+              // Jika level selain "2", filter berdasarkan customer_id
+              if (userLevel !== 2) {
+                  guestBooks = guestBooks.filter(
+                      (guestBook) => guestBook.customer_id === userLevel
+                  );
+              }
+          }
+
+          // Urutkan data berdasarkan ID dari besar ke kecil
+          const sortedGuestBooks = guestBooks.sort((a, b) => b.id_guest - a.id_guest);
+
+          // Tambahkan delay 1 detik sebelum mengatur state
+          setTimeout(() => {
+              setGuestBooks(sortedGuestBooks); // Set data setelah diurutkan
+              setIsLoading(false); // Akhiri loading setelah data di-set
+          }, 100); // Delay 1 detik
+      } catch (error) {
+          Swal.fire("Error!", "Gagal memuat data buku tamu.", "error");
+          setIsLoading(false); // Akhiri loading jika ada error
+      }
+    };
+
+    const fetchEmployees = async () => {
+      setIsLoading(true); // Mulai loading
+      try {
+          const response = await axios.get(API_EMPLOYEES);
+          
+          // Tambahkan delay 1 detik sebelum mengatur state
+          setTimeout(() => {
+              setEmployees(response.data); // Set data karyawan
+              setIsLoading(false); // Akhiri loading setelah data di-set
+          }, 1000); // Delay 1 detik
+      } catch (error) {
+          Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
+          setIsLoading(false); // Akhiri loading jika ada error
+      }
+  };
   
 
   const filteredGuestBooks = guestBooks.filter((guestBook) => {
@@ -109,7 +136,6 @@ const GuestBookPage = () => {
       (guestBook.clock_out?.toLowerCase() || "").includes(searchTerm.toLowerCase())
     );
   });
-  
 
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;

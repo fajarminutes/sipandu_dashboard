@@ -3,8 +3,20 @@ import { Dialog, Transition } from '@headlessui/react';
 import axios from 'axios';
 import Swal from 'sweetalert2';
 import { useNavigate } from 'react-router-dom';
+import { jwtDecode } from 'jwt-decode';
 
-const API_BASE_URL = 'https://sipandu.sinarjernihsuksesindo.biz.id/api/add_vehicle/';
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
+
+const API_ADD_VEHICLE = 'https://sipandu.sinarjernihsuksesindo.biz.id/api/add_vehicle/';
 const AREA_API_URL = 'https://sipandu.sinarjernihsuksesindo.biz.id/api/areas/';
 const VEHICLE_BOOK_API_URL = 'https://sipandu.sinarjernihsuksesindo.biz.id/api/vehicle_book/';
 
@@ -31,30 +43,57 @@ const AddVehiclePage = () => {
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("searchTermVehicles") || "");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
   useEffect(() => {
     localStorage.setItem("searchTermVehicles", searchTerm);
   }, [searchTerm]);
 
   useEffect(() => {
+    if(userData) {
     fetchVehicles();
     fetchAreas();
     fetchVehicleBooks();
-  }, []);
+    }
+  }, [userData]);
 
   const fetchVehicles = async () => {
-    setIsLoading(true);
+    setIsLoading(true); // Mulai loading
     try {
-      const response = await axios.get(API_BASE_URL);
-      setTimeout(() => {
-        setVehicles(response.data);
-        setIsLoading(false);
-      }, 1000);
+        const response = await axios.get(API_ADD_VEHICLE);
+        let vehicles = response.data;
+
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan customer_id
+            if (userLevel !== 2) {
+                vehicles = vehicles.filter(
+                    (vehicle) => vehicle.customer_id === userLevel
+                );
+            }
+        }
+
+        // Tambahkan delay 1 detik sebelum mengatur state
+        setTimeout(() => {
+            setVehicles(vehicles); // Set data setelah di-filter
+            setIsLoading(false); // Akhiri loading
+        }, 1000); // Delay 1 detik
     } catch (error) {
-      console.error('Error fetching vehicles:', error);
-      setIsLoading(false);
+        console.error('Error fetching vehicles:', error);
+        setIsLoading(false); // Akhiri loading jika ada error
     }
-  };
+};
+
 
   const fetchAreas = async () => {
     try {
@@ -93,7 +132,7 @@ const AddVehiclePage = () => {
     }).then(async (result) => {
       if (result.isConfirmed) {
         try {
-          await axios.delete(`${API_BASE_URL}${id}`);
+          await axios.delete(`${API_ADD_VEHICLE}${id}`);
           fetchVehicles();
           Swal.fire('Deleted!', 'Data kendaraan berhasil dihapus.', 'success');
         } catch (error) {

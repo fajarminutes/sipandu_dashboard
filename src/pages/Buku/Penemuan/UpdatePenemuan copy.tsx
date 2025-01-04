@@ -4,18 +4,6 @@ import { Dialog, Transition } from "@headlessui/react";
 
 import axios from "axios";
 import Swal from "sweetalert2";
-import { jwtDecode } from 'jwt-decode';
-
-interface DecodedToken {
-  exp: number; // Expiry time (in seconds since Unix Epoch)
-  sub: {
-    user_id: string;
-    unix_id: string;
-    username: string;
-    email: string;
-    level: string;
-  };
-}
 
 const API_ITEM_DISCOVERY = "https://sipandu.sinarjernihsuksesindo.biz.id/api/item_discovery/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -48,17 +36,7 @@ const UpdateItem = () => {
     item_discovery_photo_end: null,
     inventors_name_end: "",
   });
-const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setUserData(decoded.sub);
-    } catch (err) {
-      console.error("Token tidak valid:", err);
-    }
-  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
@@ -274,45 +252,11 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
   useEffect(() => {
     fetchItem();
+    fetchEmployees();
+    fetchShifts();
+    fetchPositions();
   }, []);
-   useEffect(() => {
-              if (userData) {
-                fetchEmployees();
-                fetchShifts();
-                fetchPositions();
-              }
-            }, [userData]);
 
-            const formatDateTime = (dateTimeString) => {
-              if (!dateTimeString) return ''; // Return empty string if no value
-              const date = new Date(dateTimeString);
-              return date.toISOString().slice(0, 16); // Formats to YYYY-MM-DDTHH:MM
-            };
-            
-            // Usage in your state initialization or when fetching data
-            useEffect(() => {
-              const fetchItem = async () => {
-                try {
-                  const response = await axios.get(`${API_ITEM_DISCOVERY}${id}`);
-                  const data = response.data;
-            
-                  // Set the formatted date for item_discovery_date_end
-                  setFormFields((prev) => ({
-                    ...prev,
-                    item_discovery_date_end: formatDateTime(data.item_discovery_date_end), // Format the date
-                    // ... other fields
-                  }));
-                } catch (error) {
-                  console.error("Error fetching item data:", error);
-                  Swal.fire("Error!", "Gagal memuat data item.", "error");
-                  navigate("/buku/penemuan");
-                }
-              };
-            
-              fetchItem();
-            }, [id]);
-
-            
   const fetchItem = async () => {
     try {
       const response = await axios.get(`${API_ITEM_DISCOVERY}${id}`);
@@ -342,25 +286,12 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
   const fetchEmployees = async () => {
     try {
-        const response = await axios.get(API_EMPLOYEES);
-        let employeesData = response.data;
-
-        // Pastikan userData tersedia
-        if (userData && userData.level) {
-            const userLevel = parseInt(userData.level, 10);
-            // Filter berdasarkan customer_id jika level bukan "2"
-            if (userLevel !== 2) {
-                employeesData = employeesData.filter(
-                    (employee) => employee.customer_id === userLevel
-                );
-            }
-        }
-
-        setEmployees(employeesData); // Set data pegawai setelah difilter
+      const response = await axios.get(API_EMPLOYEES);
+      setEmployees(response.data);
     } catch (error) {
-        Swal.fire("Error!", "Gagal memuat data petugas.", "error");
+      Swal.fire("Error!", "Gagal memuat data petugas.", "error");
     }
-};
+  };
 
   const fetchShifts = async () => {
     try {
@@ -657,16 +588,16 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
         {/* Conditional Form */}
         {formFields.status === "2" && (
           <>
-           <div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Tanggal Disampaikan</label>
-  <input
-    type="datetime-local" // Change to datetime-local
-    name="item_discovery_date_end"
-    value={formFields.item_discovery_date_end ? formFields.item_discovery_date_end : ''} // Ensure it's a valid string
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  />
-</div>
+            <div>
+              <label className="block text-lg font-medium text-gray-700 mb-2">Tanggal Disampaikan</label>
+              <input
+                type="date"
+                name="item_discovery_date_end"
+                value={formFields.item_discovery_date_end}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2"
+              />
+            </div>
 
             <div>
               <label className="block text-lg font-medium text-gray-700 mb-2">Nama Penerima Paket</label>

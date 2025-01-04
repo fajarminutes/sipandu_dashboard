@@ -152,32 +152,34 @@ const handleImportSubmit = async () => {
   const fetchEmployees = async () => {
     setIsLoading(true); // Mulai loading
     try {
-      let apiUrl = API_EMPLOYEES; // Default URL untuk level 2 (semua data)
-  
-      // Jika level pengguna bukan 2, gunakan URL khusus
-      if (userData && userData.level != "2") {
-        apiUrl = `${API_EMPLOYEES}customer/${userData.level}`; // Sesuaikan URL untuk level tertentu
-      }
-  
-  
-      const response = await axios.get(apiUrl);
-     
-      // Urutkan data berdasarkan ID dari besar ke kecil
-      const sortedEmployees = response.data.sort((a, b) => b.id - a.id);
-      setEmployees(sortedEmployees); // Set data setelah diurutkan
+        let apiUrl = API_EMPLOYEES; // Default URL untuk level 2 (semua data)
+
+        // Jika level pengguna bukan 2, gunakan URL khusus
+        if (userData && userData.level != "2") {
+            apiUrl = `${API_EMPLOYEES}customer/${userData.level}`; // Sesuaikan URL untuk level tertentu
+        }
+
+        // Tambahkan jeda 1 detik sebelum melakukan fetch
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Jeda 1 detik
+
+        const response = await axios.get(apiUrl);
+        
+        // Urutkan data berdasarkan ID dari besar ke kecil
+        const sortedEmployees = response.data.sort((a, b) => b.id - a.id);
+        setEmployees(sortedEmployees); // Set data setelah diurutkan
     } catch (error) {
-      console.error("Error fetching employees:", error.response?.data || error.message); // Debug error
-      Swal.fire("Error!", error.response?.data?.message || "Gagal memuat data karyawan.", "error");
+        console.error("Error fetching employees:", error.response?.data || error.message); // Debug error
+        Swal.fire("Error!", error.response?.data?.message || "Gagal memuat data karyawan.", "error");
     } finally {
-      setIsLoading(false); // Akhiri loading meskipun terjadi error
+        setIsLoading(false); // Akhiri loading meskipun terjadi error
     }
-  };
-  useEffect(() => {
+};
+
+useEffect(() => {
     if (userData) {
-      fetchEmployees(); // Panggil fetchEmployees hanya jika userData sudah ada
+        fetchEmployees(); // Panggil fetchEmployees hanya jika userData sudah ada
     }
-  }, [userData]);
-  
+}, [userData]);
 
 const fetchPositions = async () => {
     try {
@@ -190,6 +192,7 @@ const fetchPositions = async () => {
         Swal.fire("Error!", "Gagal memuat data posisi.", "error");
     }
 };
+
 
 const fetchShifts = async () => {
     try {

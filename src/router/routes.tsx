@@ -90,9 +90,8 @@ const routes = [
     {
         path: '/',
         element: (
-            <PublicRoute>
+        
                 <IndexPage />
-            </PublicRoute>
         ),
         layout: 'blank',
     },

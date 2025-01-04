@@ -154,7 +154,7 @@ const Sidebar = () => {
                 </AnimateHeight>
               </li>
 
-              {userData && (userData.level === '2' || userData.username.includes('customer_')) && (
+              {userData && (userData.level == '2' || userData.username.includes('customer_')) && (
                 <>
                  {/* Program */}
               <li className="menu nav-item">

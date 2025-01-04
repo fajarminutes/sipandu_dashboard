@@ -3,7 +3,19 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import Select from "react-select";
+import { jwtDecode } from 'jwt-decode';
 
+
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 const API_JOURNAL_BOOK = "https://sipandu.sinarjernihsuksesindo.biz.id/api/journal_book/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
 const API_SHIFTS = "https://sipandu.sinarjernihsuksesindo.biz.id/api/shifts/";
@@ -22,11 +34,26 @@ const CreateJournal: React.FC = () => {
   const [shifts, setShifts] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
+ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+       useEffect(() => {
+         const token = localStorage.getItem("access_token");
+         try {
+           const decoded = jwtDecode<DecodedToken>(token);
+           setUserData(decoded.sub);
+         } catch (err) {
+           console.error("Token tidak valid:", err);
+         }
+       }, []);
 
   useEffect(() => {
     fetchShifts();
-    fetchEmployees();
+    
   }, []);
+ useEffect(() => {
+      if (userData) {
+        fetchEmployees();
+      }
+    }, [userData]);
 
   const fetchShifts = async () => {
     try {
@@ -39,17 +66,31 @@ const CreateJournal: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get(API_EMPLOYEES);
-      const employeeOptions = response.data.map((employee) => ({
-        value: employee.id,
-        label: employee.employees_name,
-        shift_id: employee.shift_id,
-      }));
-      setEmployees(employeeOptions);
+        const response = await axios.get(API_EMPLOYEES);
+        let employeeOptions = response.data.map((employee) => ({
+            value: employee.id,
+            label: employee.employees_name,
+            shift_id: employee.shift_id,
+            customer_id: employee.customer_id, // Pastikan customer_id ada
+        }));
+
+        // Filter berdasarkan userData.level
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            if (userLevel !== 2) {
+                employeeOptions = employeeOptions.filter(
+                    (employee) => employee.customer_id === userLevel
+                );
+            }
+        }
+
+        setEmployees(employeeOptions);
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
+        Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
     }
-  };
+};
+
+
 
   const handleEmployeeChange = (selectedOption) => {
     setFormFields((prev) => ({

@@ -264,7 +264,7 @@ const MatrixPage: React.FC = () => {
                 className="w-full border px-4 py-2 mb-4"
                 placeholder="Nama Matrix"
               />
-              <div className="flex justify-end">
+              <div className="mt-6 flex justify-between">
                 <button
                   onClick={closeModal}
                   className="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700"

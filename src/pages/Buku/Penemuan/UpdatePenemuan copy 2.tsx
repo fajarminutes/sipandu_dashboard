@@ -4,18 +4,6 @@ import { Dialog, Transition } from "@headlessui/react";
 
 import axios from "axios";
 import Swal from "sweetalert2";
-import { jwtDecode } from 'jwt-decode';
-
-interface DecodedToken {
-  exp: number; // Expiry time (in seconds since Unix Epoch)
-  sub: {
-    user_id: string;
-    unix_id: string;
-    username: string;
-    email: string;
-    level: string;
-  };
-}
 
 const API_ITEM_DISCOVERY = "https://sipandu.sinarjernihsuksesindo.biz.id/api/item_discovery/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -48,17 +36,7 @@ const UpdateItem = () => {
     item_discovery_photo_end: null,
     inventors_name_end: "",
   });
-const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
-  useEffect(() => {
-    const token = localStorage.getItem("access_token");
-    try {
-      const decoded = jwtDecode<DecodedToken>(token);
-      setUserData(decoded.sub);
-    } catch (err) {
-      console.error("Token tidak valid:", err);
-    }
-  }, []);
   const [isSaving, setIsSaving] = useState(false);
   const [employees, setEmployees] = useState([]);
     const [shifts, setShifts] = useState([]);
@@ -271,120 +249,64 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
                     console.error("Geolocation is not supported by this browser.");
                   }
                 };
-
-  useEffect(() => {
-    fetchItem();
-  }, []);
-   useEffect(() => {
-              if (userData) {
-                fetchEmployees();
-                fetchShifts();
-                fetchPositions();
-              }
-            }, [userData]);
-
-            const formatDateTime = (dateTimeString) => {
-              if (!dateTimeString) return ''; // Return empty string if no value
-              const date = new Date(dateTimeString);
-              return date.toISOString().slice(0, 16); // Formats to YYYY-MM-DDTHH:MM
-            };
-            
-            // Usage in your state initialization or when fetching data
-            useEffect(() => {
-              const fetchItem = async () => {
-                try {
-                  const response = await axios.get(`${API_ITEM_DISCOVERY}${id}`);
-                  const data = response.data;
-            
-                  // Set the formatted date for item_discovery_date_end
-                  setFormFields((prev) => ({
-                    ...prev,
-                    item_discovery_date_end: formatDateTime(data.item_discovery_date_end), // Format the date
-                    // ... other fields
-                  }));
-                } catch (error) {
-                  console.error("Error fetching item data:", error);
-                  Swal.fire("Error!", "Gagal memuat data item.", "error");
-                  navigate("/buku/penemuan");
-                }
-              };
-            
-              fetchItem();
-            }, [id]);
-
-            
-  const fetchItem = async () => {
+// Load data dari API saat pertama kali render
+useEffect(() => {
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${API_ITEM_DISCOVERY}${id}`);
-      const data = response.data;
+      // Ambil semua data secara paralel
+      const [employeesData, positionsData, shiftsData] = await Promise.all([
+        axios.get(API_EMPLOYEES),
+        axios.get(API_POSITIONS),
+        axios.get(API_SHIFTS),
+      ]);
 
-  
-      // Periksa apakah handover_photo ada, dan siapkan URL foto
-      if (data.item_discovery_photo) {
-        const updatedPhotoURL = `https://sipandu.sinarjernihsuksesindo.biz.id/${data.item_discovery_photo}`;
-        setPhotoPreview(updatedPhotoURL); // Set photoPreview dengan URL dari API
-      } else {
-        setPhotoPreview(null); // Jika tidak ada foto, set null
+      // Simpan data ke state
+      setEmployees(employeesData.data);
+      setPositions(positionsData.data);
+      setShifts(shiftsData.data);
+
+      // Jika ada petugas yang sudah dipilih (default), tampilkan data terkait
+      if (employeesData.data.length > 0) {
+        const defaultEmployee = employeesData.data[0]; // Petugas pertama sebagai default
+        updatePositionAndShift(defaultEmployee.id, employeesData.data, positionsData.data, shiftsData.data);
       }
-  
-      // Salin nilai properti dari data ke form fields
-      setFormFields((prev) => ({
-        ...prev,
-        ...data, // Gabungkan data API ke formFields yang ada
-      }));
     } catch (error) {
-      console.error("Error fetching item data:", error); // Tambahkan log untuk debugging
-      Swal.fire("Error!", "Gagal memuat data item.", "error");
-      navigate("/buku/penemuan"); // Navigasi hanya jika error
+      console.error("Error loading data:", error);
+      alert("Gagal memuat data. Silakan coba lagi.");
     }
   };
-  
 
-  const fetchEmployees = async () => {
-    try {
-        const response = await axios.get(API_EMPLOYEES);
-        let employeesData = response.data;
+  fetchData();
+}, []);
 
-        // Pastikan userData tersedia
-        if (userData && userData.level) {
-            const userLevel = parseInt(userData.level, 10);
-            // Filter berdasarkan customer_id jika level bukan "2"
-            if (userLevel !== 2) {
-                employeesData = employeesData.filter(
-                    (employee) => employee.customer_id === userLevel
-                );
-            }
-        }
+ // Fungsi untuk memperbarui jabatan dan shift berdasarkan ID petugas
+ const updatePositionAndShift = (employeeId, employeeList, positionList, shiftList) => {
+  const selectedEmployee = employeeList.find((employee) => employee.id === Number(employeeId));
 
-        setEmployees(employeesData); // Set data pegawai setelah difilter
-    } catch (error) {
-        Swal.fire("Error!", "Gagal memuat data petugas.", "error");
-    }
+  if (selectedEmployee) {
+    const { position_id, shift_id } = selectedEmployee;
+
+    // Temukan nama jabatan dan shift dari data
+    const selectedPosition = positionList.find((position) => position.position_id === position_id);
+    const selectedShift = shiftList.find((shift) => shift.shift_id === shift_id);
+
+    setFormFields({
+      id: employeeId,
+      position_name: selectedPosition ? selectedPosition.position_name : "",
+      shift_name: selectedShift ? selectedShift.shift_name : "",
+    });
+  }
 };
 
-  const fetchShifts = async () => {
-    try {
-      const response = await axios.get(API_SHIFTS);
-      setShifts(response.data);
-    } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data shift.", "error");
-    }
-  };
+// Handler untuk perubahan input petugas
+const handleInputChange = (e) => {
+  const { name, value } = e.target;
 
-  const fetchPositions = async () => {
-    try {
-      const response = await axios.get(API_POSITIONS);
-      setPositions(response.data);
-    } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data jabatan.", "error");
-    }
-  };
-
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormFields((prev) => ({ ...prev, [name]: value }));
-  };
+  if (name === "id") {
+    // Perbarui jabatan dan shift ketika petugas berubah
+    updatePositionAndShift(value, employees, positions, shifts);
+  }
+};
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -556,8 +478,8 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
           ></textarea>
         </div>
 
-        {/* Dropdown Petugas */}
-        <div>
+       {/* Dropdown Petugas */}
+       <div>
           <label className="block text-lg font-medium text-gray-700 mb-2">Nama Petugas</label>
           <select
             name="id"
@@ -574,41 +496,29 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
           </select>
         </div>
 
-       {/* Dropdown Jabatan */}
-<div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Jabatan</label>
-  <select
-    name="position_id"
-    value={formFields.position_id}
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  >
-    <option value="">Pilih Jabatan</option>
-    {positions.map((position) => (
-      <option key={position.position_id} value={position.position_id}>
-        {position.position_name}
-      </option>
-    ))}
-  </select>
-</div>
+        {/* Jabatan */}
+        <div>
+          <label className="block text-lg font-medium text-gray-700 mb-2">Jabatan</label>
+          <input
+            type="text"
+            value={formFields.position_name || ""}
+            readOnly
+            placeholder="Pilih Petugas Terlebih Dahulu"
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100"
+          />
+        </div>
 
-{/* Dropdown Shift */}
-<div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Shift</label>
-  <select
-    name="shift_id"
-    value={formFields.shift_id}
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  >
-    <option value="">Pilih Shift</option>
-    {shifts.map((shift) => (
-      <option key={shift.shift_id} value={shift.shift_id}>
-        {shift.shift_name}  
-      </option>
-    ))}
-  </select>
-</div>
+        {/* Shift */}
+        <div>
+          <label className="block text-lg font-medium text-gray-700 mb-2">Shift</label>
+          <input
+            type="text"
+            value={formFields.shift_name || ""}
+            readOnly
+            placeholder="Pilih Petugas Terlebih Dahulu"
+            className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100"
+          />
+        </div>
 
 <div>
          <label className="block text-lg font-medium text-gray-700 mb-2">Foto</label>
@@ -657,16 +567,16 @@ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
         {/* Conditional Form */}
         {formFields.status === "2" && (
           <>
-           <div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Tanggal Disampaikan</label>
-  <input
-    type="datetime-local" // Change to datetime-local
-    name="item_discovery_date_end"
-    value={formFields.item_discovery_date_end ? formFields.item_discovery_date_end : ''} // Ensure it's a valid string
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  />
-</div>
+            <div>
+              <label className="block text-lg font-medium text-gray-700 mb-2">Tanggal Disampaikan</label>
+              <input
+                type="date"
+                name="item_discovery_date_end"
+                value={formFields.item_discovery_date_end}
+                onChange={handleInputChange}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2"
+              />
+            </div>
 
             <div>
               <label className="block text-lg font-medium text-gray-700 mb-2">Nama Penerima Paket</label>

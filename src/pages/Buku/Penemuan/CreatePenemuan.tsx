@@ -3,7 +3,18 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Dialog, Transition } from "@headlessui/react";
+import { jwtDecode } from 'jwt-decode';
 
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 
 const API_ITEM_DISCOVERY = "https://sipandu.sinarjernihsuksesindo.biz.id/api/item_discovery/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -29,7 +40,17 @@ const CreateItem = () => {
     position_id: "",
     shift_id: "",
   });
+const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
 
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
   
   const [employees, setEmployees] = useState([]);
   const [shifts, setShifts] = useState([]);
@@ -244,20 +265,36 @@ const CreateItem = () => {
               }
             };
 
-  useEffect(() => {
-    fetchEmployees();
-    fetchShifts();
-    fetchPositions();
-  }, []);
+   useEffect(() => {
+            if (userData) {
+              fetchEmployees();
+              fetchShifts();
+              fetchPositions();
+            }
+          }, [userData]);
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get(API_EMPLOYEES);
-      setEmployees(response.data);
+        const response = await axios.get(API_EMPLOYEES);
+        let employeesData = response.data;
+
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Filter berdasarkan customer_id jika level bukan "2"
+            if (userLevel !== 2) {
+                employeesData = employeesData.filter(
+                    (employee) => employee.customer_id === userLevel
+                );
+            }
+        }
+
+        setEmployees(employeesData); // Set data pegawai setelah difilter
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data petugas.", "error");
+        Swal.fire("Error!", "Gagal memuat data petugas.", "error");
     }
-  };
+};
+
 
   const fetchShifts = async () => {
     try {
@@ -280,7 +317,28 @@ const CreateItem = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormFields((prev) => ({ ...prev, [name]: value }));
-  };
+
+    // Jika field yang dipilih adalah 'id' (petugas), update jabatan dan shift
+    if (name === "id") {
+        const selectedEmployee = employees.find((employee) => employee.id === Number(value));
+        if (selectedEmployee) {
+            const { position_id, shift_id } = selectedEmployee;
+
+            // Temukan nama jabatan dan shift
+            const selectedPosition = positions.find((position) => position.position_id === position_id);
+            const selectedShift = shifts.find((shift) => shift.shift_id === shift_id);
+
+            setFormFields((prev) => ({
+                ...prev,
+                position_id: position_id,
+                shift_id: shift_id,
+                position_name: selectedPosition ? selectedPosition.position_name : "",
+                shift_name: selectedShift ? selectedShift.shift_name : "",
+            }));
+        }
+    }
+};
+
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
@@ -497,41 +555,30 @@ const CreateItem = () => {
           </select>
         </div>
 
-       {/* Dropdown Jabatan */}
+       {/* Jabatan */}
 <div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Jabatan</label>
-  <select
-    name="position_id"
-    value={formFields.position_id}
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  >
-    <option value="">Pilih Jabatan</option>
-    {positions.map((position) => (
-      <option key={position.position_id} value={position.position_id}>
-        {position.position_name}
-      </option>
-    ))}
-  </select>
+    <label className="block text-lg font-medium text-gray-700 mb-2">Jabatan</label>
+    <input
+        type="text"
+        value={formFields.position_name || ""}
+        readOnly
+        placeholder="Pilih Petugas Terlebih Dahulu"
+        className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100"
+    />
 </div>
 
-{/* Dropdown Shift */}
+{/* Shift */}
 <div>
-  <label className="block text-lg font-medium text-gray-700 mb-2">Shift</label>
-  <select
-    name="shift_id"
-    value={formFields.shift_id}
-    onChange={handleInputChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-2"
-  >
-    <option value="">Pilih Shift</option>
-    {shifts.map((shift) => (
-      <option key={shift.shift_id} value={shift.shift_id}>
-        {shift.shift_name}  
-      </option>
-    ))}
-  </select>
+    <label className="block text-lg font-medium text-gray-700 mb-2">Shift</label>
+    <input
+        type="text"
+        value={formFields.shift_name || ""}
+        readOnly
+        placeholder="Pilih Petugas Terlebih Dahulu"
+        className="w-full border border-gray-300 rounded-lg px-4 py-2 bg-gray-100"
+    />
 </div>
+
 
 
 
@@ -595,7 +642,7 @@ const CreateItem = () => {
           </button>
           <button
             type="button"
-            onClick={() => navigate("/items")}
+            onClick={() => navigate("/buku/penemuan")}
             className="bg-gray-600 text-white py-2 px-6 rounded-lg hover:bg-gray-700"
           >
             Kembali

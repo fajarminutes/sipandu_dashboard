@@ -3,7 +3,18 @@ import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { Dialog, Transition } from "@headlessui/react";
+import { jwtDecode } from 'jwt-decode';
 
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 const API_VEHICLE_BOOK = "https://sipandu.sinarjernihsuksesindo.biz.id/api/vehicle_book/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
 const API_SHIFTS = "https://sipandu.sinarjernihsuksesindo.biz.id/api/shifts/";
@@ -19,7 +30,17 @@ const CreateKendaraan: React.FC = () => {
     id: "",
     foto: null,
   });
-
+   const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+  
+    useEffect(() => {
+      const token = localStorage.getItem("access_token");
+      try {
+        const decoded = jwtDecode<DecodedToken>(token);
+        setUserData(decoded.sub);
+      } catch (err) {
+        console.error("Token tidak valid:", err);
+      }
+    }, []);
   const [areas, setAreas] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [filteredEmployees, setFilteredEmployees] = useState([]);
@@ -241,21 +262,35 @@ const CreateKendaraan: React.FC = () => {
   
 
   useEffect(() => {
+    if(userData) {
     fetchAreas();
     fetchCustomers();
     fetchShifts();
     fetchEmployees();
-  }, []);
+    }
+  }, [userData]);
 
   const fetchAreas = async () => {
     try {
-      const response = await axios.get(API_AREAS);
-      setAreas(response.data);
-    } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data area.", "error");
-    }
-  };
+        const response = await axios.get(API_AREAS);
+        let areas = response.data;
 
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan building_id
+            if (userLevel !== 2) {
+                areas = areas.filter(
+                    (area) => area.building_id === userLevel
+                );
+            }
+        }
+
+        setAreas(areas); // Set data setelah di-filter
+    } catch (error) {
+        Swal.fire("Error!", "Gagal memuat data area.", "error");
+    }
+};
   const fetchCustomers = async () => {
     try {
       const response = await axios.get(API_CUSTOMERS);
@@ -276,12 +311,26 @@ const CreateKendaraan: React.FC = () => {
 
   const fetchEmployees = async () => {
     try {
-      const response = await axios.get(API_EMPLOYEES);
-      setEmployees(response.data);
+        const response = await axios.get(API_EMPLOYEES);
+        let employees = response.data;
+
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan customer_id
+            if (userLevel !== 2) {
+                employees = employees.filter(
+                    (employee) => employee.customer_id === userLevel
+                );
+            }
+        }
+
+        setEmployees(employees); // Set data setelah di-filter
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
+        Swal.fire("Error!", "Gagal memuat data karyawan.", "error");
     }
-  };
+};
+
 
   const handleAreaChange = (areaId: string) => {
     setFormFields((prev) => ({

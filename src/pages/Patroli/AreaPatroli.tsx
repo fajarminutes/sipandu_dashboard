@@ -19,12 +19,15 @@ interface Customer {
   name: string;
 }
 
-interface UserData {
-  user_id: string;
-  unix_id: string;
-  username: string;
-  email: string;
-  level: string;
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
 }
 
 const AREA_PATROLI_API = 'https://sipandu.sinarjernihsuksesindo.biz.id/api/area-patroli/';
@@ -432,57 +435,59 @@ const customerOptions = customerList.map((customer) => ({
 
       )}
 
-      <Transition appear show={isModalOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-10" onClose={closeModal}>
-          <div className="fixed inset-0 bg-black bg-opacity-25" />
-          <div className="fixed inset-0 overflow-y-auto">
-            <div className="flex min-h-full items-center justify-center p-4 text-center">
-              <Dialog.Panel className="w-full max-w-md transform overflow-hidden rounded-2xl bg-white p-6 text-left align-middle shadow-xl">
-                <Dialog.Title as="h3" className="text-lg font-medium text-gray-900">
-                  {editingAreaPatroli ? 'Edit Area Patroli' : 'Tambah Area Patroli Baru'}
-                </Dialog.Title>
-                <div className="mt-4">
-                  <label className="block font-bold">Deskripsi Area Patroli</label>
-                  <input
-                    type="text"
-                    value={formFields.desc_area_patroli}
-                    onChange={(e) => setFormFields({ ...formFields, desc_area_patroli: e.target.value })}
-                    className="form-input mt-2 w-full"
-                  />
-                </div>
-                <div className="mt-4">
-                  <label className="block font-bold">Nama Lokasi</label>
-                  <Select
-  options={
-    userData && userData.level === "2" // Jika level 2, tampilkan semua opsi
-      ? customerOptions
-      : customerOptions.filter((option) => option.value === parseInt(userData?.level || "0", 10)) // Filter sesuai level
-  }
-  value={customerOptions.find((option) => option.value === Number(formFields.customer_id))} // Nilai yang dipilih
-  onChange={(selectedOption) =>
-    setFormFields((prev) => ({
-      ...prev,
-      customer_id: selectedOption ? selectedOption.value : "",
-    }))
-  } // Fungsi untuk menangani perubahan nilai
-  placeholder="Pilih Lokasi"
-  isClearable // Tambahkan opsi untuk menghapus pilihan
-/>
+<Transition appear show={isModalOpen} as={Fragment}>
+  <Dialog onClose={closeModal} className="relative z-10">
+    <div className="fixed inset-0 bg-black bg-opacity-30" />
+    <div className="fixed inset-0 flex items-center justify-center p-4">
+      <Dialog.Panel className="bg-white p-6 rounded-lg shadow-md max-w-md w-full">
+        <Dialog.Title className="text-lg font-bold mb-4">
+          {editingAreaPatroli ? "Edit Area Patroli" : "Tambah Area Patroli Baru"}
+        </Dialog.Title>
+        
+        <input
+          type="text"
+          value={formFields.desc_area_patroli}
+          onChange={(e) => setFormFields({ ...formFields, desc_area_patroli: e.target.value })}
+          className="w-full border px-4 py-2 mb-4"
+          placeholder="Deskripsi Area Patroli"
+        />
+        
+        <Select
+          options={
+            userData && userData.level == 2 // If level 2, show all options
+              ? customerOptions
+              : customerOptions.filter((option) => option.value === parseInt(userData?.level || "0", 10)) // Filter by level
+          }
+          value={customerOptions.find((option) => option.value === Number(formFields.customer_id))} // Selected value
+          onChange={(selectedOption) =>
+            setFormFields((prev) => ({
+              ...prev,
+              customer_id: selectedOption ? selectedOption.value : "",
+            }))
+          } // Handle value change
+          placeholder="Pilih Lokasi"
+          isClearable // Add option to clear selection
+        />
 
-                </div>
-                <div className="mt-6 flex justify-between">
-                  <button type="button" className="bg-gray-600 text-white py-2 px-6 rounded-lg" onClick={closeModal}>
-                    Batal
-                  </button>
-                  <button type="button" className="bg-blue-600 text-white py-2 px-6 rounded-lg" onClick={handleSave}>
-                    {editingAreaPatroli ? 'Perbarui' : 'Simpan'}
-                  </button>
-                </div>
-              </Dialog.Panel>
-            </div>
-          </div>
-        </Dialog>
-      </Transition>
+        <div className="mt-6 flex justify-between">
+          <button
+            onClick={closeModal}
+            className="bg-gray-600 text-white py-2 px-4 rounded-lg hover:bg-gray-700"
+          >
+            Batal
+          </button>
+          <button
+            onClick={handleSave}
+            className="bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700"
+          >
+            {editingAreaPatroli ? "Perbarui" : "Simpan"}
+          </button>
+        </div>
+      </Dialog.Panel>
+    </div>
+  </Dialog>
+</Transition>
+
 
       <Transition appear show={isInfoModalOpen} as={Fragment}>
   <Dialog onClose={() => setIsInfoModalOpen(false)} className="relative z-10">

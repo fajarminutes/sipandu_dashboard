@@ -186,12 +186,12 @@ const Update: React.FC = () => {
           <div id="map" style={{ height: "400px", borderRadius: "10px" }}></div>
         </div>
         <button
-            type="button"
-            onClick={handleGetLocation}
-            className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700"
-          >
-            Ambil Lokasi Saya
-          </button>
+          type="button"
+          onClick={handleGetLocation}
+          className="bg-green-600 text-white py-2 px-6 rounded-lg hover:bg-green-700"
+        >
+          Ambil Lokasi Saya
+        </button>
         <div className="grid grid-cols-2 gap-4">
           <div>
             <label className="block text-lg font-medium text-gray-700 mb-2">Latitude</label>
@@ -214,8 +214,17 @@ const Update: React.FC = () => {
             />
           </div>
         </div>
+        <div>
+          <label className="block text-lg font-medium text-gray-700 mb-2">Radius</label>
+          <input
+            type="number"
+            value={formFields.radius}
+            onChange={(e) => setFormFields({ ...formFields, radius: Number(e.target.value) })}
+            className="w-full border border-gray-300 rounded-lg px-4 py-2"
+            placeholder="Masukkan radius"
+          />
+        </div>
         <div className="flex justify-between items-center">
-          
           <button
             type="button"
             onClick={handleUpdate}

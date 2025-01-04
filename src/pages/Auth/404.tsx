@@ -17,7 +17,7 @@ const Error404 = () => {
 
     // Handle redirect back
     const handleGoBack = () => {
-        const fromPath = location.state?.from || '/'; // Redirect to previous path if available, else to home
+        const fromPath = location.state?.from || '/dashboard'; // Redirect to previous path if available, else to home
         navigate(fromPath, { replace: true });
     };
 

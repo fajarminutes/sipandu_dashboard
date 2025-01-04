@@ -47,8 +47,12 @@ const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); // Untuk modal in
         ...thema,
         photo: `${IMAGE_BASE_URL}${thema.photo}`,
       }));
+  
+      // Sort the data by ID in descending order
+      const sortedData = updatedData.sort((a, b) => b.id - a.id); // Assuming 'id' is the property name
+  
       setTimeout(() => {
-        setThemaList(updatedData);
+        setThemaList(sortedData);
         setIsLoading(false);
       }, 1000);
     } catch (error) {
@@ -57,7 +61,7 @@ const [isInfoModalOpen, setIsInfoModalOpen] = useState(false); // Untuk modal in
       Swal.fire("Error", "Gagal memuat data.", "error");
     }
   };
-
+  
   const openModal = (thema: Thema | null = null) => {
     setEditingThema(thema);
     if (thema) {

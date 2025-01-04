@@ -2,6 +2,18 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import Swal from "sweetalert2";
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 
 const API_HANDOVER = "https://sipandu.sinarjernihsuksesindo.biz.id/api/handover/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -31,6 +43,18 @@ const HandoverPage = () => {
 
   const [isModalOpenGambar, setIsModalOpenGambar] = useState(false);
 const [selectedImage, setSelectedImage] = useState(null);
+ const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
+
 
 const openModal = (image) => {
   setSelectedImage(image);
@@ -45,10 +69,15 @@ const closeModal = () => {
   useEffect(() => {
     const fetchData = async () => {
       await fetchEmployees(); // Ambil data karyawan terlebih dahulu
-      await fetchHandoverData(); // Baru setelah itu ambil data handover
     };
     fetchData();
   }, []);
+  useEffect(() => {
+      if (userData) {
+        fetchHandoverData();
+      }
+    }, [userData]);
+
 
   useEffect(() => {
     localStorage.setItem("searchTermHandover", searchTerm);
@@ -57,20 +86,34 @@ const closeModal = () => {
   const fetchHandoverData = async () => {
     setIsLoading(true);
     try {
-      // Tambahkan delay 1 detik
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+        // Tambahkan delay 1 detik
+        await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      const response = await axios.get(API_HANDOVER);
-      const sortedHandoverData = response.data.sort((a, b) => b.id_handover - a.id_handover);
+        const response = await axios.get(API_HANDOVER);
+        let handoverData = response.data;
 
+        // Pastikan userData tersedia
+        if (userData && userData.level) {
+            const userLevel = parseInt(userData.level, 10);
+            // Jika level selain "2", filter berdasarkan customer_id
+            if (userLevel !== 2) {
+                handoverData = handoverData.filter(
+                    (handover) => handover.customer_id === userLevel
+                );
+            }
+        }
 
-      setHandovers(sortedHandoverData);
+        // Urutkan data berdasarkan ID dari besar ke kecil
+        const sortedHandoverData = handoverData.sort((a, b) => b.id_handover - a.id_handover);
+
+        setHandovers(sortedHandoverData); // Set data setelah diurutkan
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data serah terima.", "error");
+        Swal.fire("Error!", "Gagal memuat data serah terima.", "error");
     } finally {
-      setIsLoading(false);
+        setIsLoading(false); // Akhiri loading setelah data di-set
     }
-  };
+};
+
 
   const fetchEmployees = async () => {
     try {

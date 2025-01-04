@@ -2,7 +2,18 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import Swal from "sweetalert2";
 import { useNavigate } from "react-router-dom";
+import { jwtDecode } from 'jwt-decode';
 
+interface DecodedToken {
+  exp: number; // Expiry time (in seconds since Unix Epoch)
+  sub: {
+    user_id: string;
+    unix_id: string;
+    username: string;
+    email: string;
+    level: string;
+  };
+}
 
 const API_ITEM_DISCOVERY = "https://sipandu.sinarjernihsuksesindo.biz.id/api/item_discovery/";
 const API_EMPLOYEES = "https://sipandu.sinarjernihsuksesindo.biz.id/api/employees/";
@@ -29,6 +40,17 @@ const ItemPage = () => {
   const [searchTerm, setSearchTerm] = useState(() => localStorage.getItem("searchTermItem") || "");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(5);
+const [userData, setUserData] = useState<DecodedToken['sub'] | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    try {
+      const decoded = jwtDecode<DecodedToken>(token);
+      setUserData(decoded.sub);
+    } catch (err) {
+      console.error("Token tidak valid:", err);
+    }
+  }, []);
 
    const [isModalOpenGambar, setIsModalOpenGambar] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -43,34 +65,54 @@ const ItemPage = () => {
     setSelectedImage(null);
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      await fetchEmployees(); // Fetch employee data
-      await fetchItemDiscovery(); // Fetch item discovery data
-    };
-    fetchData();
-  }, []);
+ 
+  
+    useEffect(() => {
+          if (userData) {
+            fetchEmployees();
+            fetchItemDiscovery();
+          }
+        }, [userData]);
 
   useEffect(() => {
     localStorage.setItem("searchTermItem", searchTerm);
   }, [searchTerm]);
 
-  const fetchItemDiscovery = async () => {
+ const fetchItemDiscovery = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(API_ITEM_DISCOVERY);
-      setTimeout(() => {
-        const sortedItems = response.data.sort(
-          (a, b) => b.id_item_discovery - a.id_item_discovery
-        );
-        setItems(sortedItems);
-        setIsLoading(false); // Pindahkan ke dalam setTimeout
-      }, 1000);
+        const response = await axios.get(API_ITEM_DISCOVERY);
+        const items = response.data;
+
+        // Tambahkan delay 1 detik sebelum memfilter dan mengurutkan
+        setTimeout(() => {
+            let filteredItems = items;
+
+            // Pastikan userData tersedia
+            if (userData && userData.level) {
+                const userLevel = parseInt(userData.level, 10);
+                // Jika level selain "2", filter berdasarkan customer_id
+                if (userLevel !== 2) {
+                    filteredItems = filteredItems.filter(
+                        (item) => item.customer_id === userLevel
+                    );
+                }
+            }
+
+            // Urutkan data berdasarkan ID dari besar ke kecil
+            const sortedItems = filteredItems.sort(
+                (a, b) => b.id_item_discovery - a.id_item_discovery
+            );
+
+            setItems(sortedItems); // Set data setelah diurutkan
+            setIsLoading(false); // Akhiri loading setelah data di-set
+        }, 1000); // Delay 1 detik
     } catch (error) {
-      Swal.fire("Error!", "Gagal memuat data item discovery.", "error");
-      setIsLoading(false); // Tetap panggil jika ada error
+        Swal.fire("Error!", "Gagal memuat data item discovery.", "error");
+        setIsLoading(false); // Tetap panggil jika ada error
     }
-  };
+};
+
   
   const fetchEmployees = async () => {
     try {

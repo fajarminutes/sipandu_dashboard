@@ -72,7 +72,7 @@ const LoginBoxed = () => {
                 }).then(() => {
                     localStorage.setItem('access_token', result.access_token);
                     sessionStorage.removeItem('alertDisplayed');
-                    const redirectPath = location.state?.from || '/';
+                    const redirectPath = location.state?.from || '/dashboard';
                     navigate(redirectPath);
                 });
             } else {
